@@ -93,6 +93,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .icon-button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); background: white; cursor: pointer; }
 .icon-button:hover { color: var(--ink); background: var(--surface-soft); }
 .icon-button svg { width: 16px; height: 16px; }
+.logout-form { display: contents; }
 .main-column { min-width: 0; }
 .mobile-header, .mobile-nav { display: none; }
 .page-content { max-width: 1460px; margin: 0 auto; padding: 40px clamp(28px, 4vw, 62px) 64px; }

@@ -1,14 +1,12 @@
-"use client";
-
 import { LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
+import { signOutAction } from "@/app/actions/session";
 
 export function LogoutButton() {
-  const router = useRouter();
   return (
-    <button className="icon-button" type="button" title="Sign out" aria-label="Sign out" onClick={async () => { await authClient.signOut(); router.push("/login"); router.refresh(); }}>
-      <LogOut aria-hidden="true" />
-    </button>
+    <form action={signOutAction} className="logout-form">
+      <button className="icon-button" type="submit" title="Sign out" aria-label="Sign out">
+        <LogOut aria-hidden="true" />
+      </button>
+    </form>
   );
 }
