@@ -8,10 +8,11 @@ import { db } from "@/lib/db";
 import { canAccessTicket } from "@/lib/permissions";
 import { assertSameOrigin } from "@/lib/request-security";
 import { viewerFromHeaders } from "@/lib/route-auth";
+import type { IdRouteContext } from "@/lib/route-context";
 
 const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
 
-export async function POST(request: NextRequest, context: RouteContext<"/api/tickets/[id]/attachments">) {
+export async function POST(request: NextRequest, context: IdRouteContext) {
   const viewer = await viewerFromHeaders(request.headers);
   if (!viewer) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
   try { assertSameOrigin(request); } catch { return NextResponse.json({ error: "INVALID_ORIGIN" }, { status: 403 }); }
