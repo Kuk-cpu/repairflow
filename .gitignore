@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next-e2e/
 /out/
 
 # production
@@ -32,6 +33,14 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# private runtime data
+/.data/
+/backups/
+/playwright-report/
+/test-results/
+/generated/
 
 # vercel
 .vercel

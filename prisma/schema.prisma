@@ -1,0 +1,401 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  MANAGER
+  TENANT
+  CONTRACTOR
+}
+
+enum TicketStatus {
+  SUBMITTED
+  NEEDS_INFO
+  TRIAGED
+  ASSIGNED
+  SCHEDULED
+  IN_PROGRESS
+  AWAITING_CONFIRMATION
+  CLOSED
+  CANCELLED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum QuoteStatus {
+  SUBMITTED
+  REVISION_REQUESTED
+  APPROVED
+  REJECTED
+  SUPERSEDED
+}
+
+enum Visibility {
+  INTERNAL
+  PARTICIPANTS
+  TENANT
+  CONTRACTOR
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+model User {
+  id                    String              @id @default(cuid())
+  name                  String
+  email                 String              @unique
+  emailVerified         Boolean             @default(false)
+  image                 String?
+  role                   Role                @default(TENANT)
+  active                 Boolean             @default(true)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  sessions               Session[]
+  accounts               Account[]
+  tenantProperties       TenantProperty[]
+  contractorProfile      ContractorProfile?
+  createdTickets         Ticket[]            @relation("TicketCreator")
+  assignedTickets        Ticket[]            @relation("TicketContractor")
+  events                 TicketEvent[]
+  submittedQuotes        Quote[]
+  notifications          Notification[]
+  attachments            Attachment[]
+  aiDrafts               AiDraft[]
+  invitationsCreated     Invitation[]        @relation("InvitationCreator")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@unique([providerId, accountId])
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([identifier])
+}
+
+model TeamConfig {
+  id                            String   @id @default("default")
+  teamName                      String   @default("Harbour Homes")
+  emergencyPhone                String   @default("000 for life-threatening emergencies; (02) 5550 0199 for urgent property issues")
+  contractorResponseHours       Int      @default(24)
+  appointmentReminderHours      Int      @default(24)
+  pendingConfirmationHours      Int      @default(48)
+  timezone                      String   @default("Australia/Sydney")
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+}
+
+model Property {
+  id          String           @id @default(cuid())
+  name        String
+  addressLine String
+  suburb      String
+  state       String           @default("NSW")
+  postcode    String
+  notes       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  tenants     TenantProperty[]
+  tickets     Ticket[]
+  assets      Asset[]
+
+  @@index([postcode])
+}
+
+model TenantProperty {
+  id         String   @id @default(cuid())
+  tenantId   String
+  propertyId String
+  startsAt   DateTime @default(now())
+  endsAt     DateTime?
+  tenant     User     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, propertyId, startsAt])
+  @@index([propertyId, endsAt])
+  /// A partial unique index in migration 20260913103000 permits only one active link per tenant and property.
+}
+
+model ContractorProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  businessName     String
+  phone            String
+  trades           String[]
+  servicePostcodes String[]
+  active           Boolean  @default(true)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Asset {
+  id           String   @id @default(cuid())
+  propertyId   String
+  name         String
+  category     String
+  manufacturer String?
+  model        String?
+  serialNumber String?
+  installedAt  DateTime?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tickets      Ticket[]
+
+  @@index([propertyId])
+}
+
+model Ticket {
+  id                    String         @id @default(cuid())
+  reference             String         @unique
+  propertyId            String
+  assetId               String?
+  createdById           String
+  assignedContractorId  String?
+  status                TicketStatus   @default(SUBMITTED)
+  priority              TicketPriority @default(NORMAL)
+  title                 String
+  description           String
+  location              String
+  availability          String
+  aiSummary             String?
+  aiLocation            String?
+  aiTimeMention         String?
+  aiMissingInfo         String[]
+  triageConfirmedAt     DateTime?
+  quoteWaivedAt         DateTime?
+  quoteWaivedById       String?
+  quoteWaiverReason     String?
+  completionNotes       String?
+  actualCostCents       Int?
+  managerCloseReason    String?
+  cancelReason          String?
+  reopenedCount         Int            @default(0)
+  version               Int            @default(1)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  closedAt              DateTime?
+  property              Property       @relation(fields: [propertyId], references: [id])
+  asset                 Asset?         @relation(fields: [assetId], references: [id])
+  createdBy             User           @relation("TicketCreator", fields: [createdById], references: [id])
+  assignedContractor    User?          @relation("TicketContractor", fields: [assignedContractorId], references: [id])
+  events                TicketEvent[]
+  quotes                Quote[]
+  appointments          Appointment[]
+  attachments           Attachment[]
+  aiDrafts              AiDraft[]
+
+  @@index([propertyId, status])
+  @@index([createdById, createdAt])
+  @@index([assignedContractorId, status])
+  @@index([status, updatedAt])
+}
+
+model TicketEvent {
+  id             String     @id @default(cuid())
+  ticketId       String
+  actorId        String?
+  type           String
+  message        String
+  visibility     Visibility @default(PARTICIPANTS)
+  metadata       Json?
+  ticketVersion  Int
+  idempotencyKey String?    @unique
+  createdAt      DateTime   @default(now())
+  ticket         Ticket     @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actor          User?      @relation(fields: [actorId], references: [id])
+
+  @@index([ticketId, createdAt])
+}
+
+model Quote {
+  id              String      @id @default(cuid())
+  ticketId        String
+  submittedById   String
+  version         Int
+  status          QuoteStatus @default(SUBMITTED)
+  amountCents     Int
+  scope           String
+  managerResponse String?
+  submittedAt     DateTime    @default(now())
+  decidedAt       DateTime?
+  decidedById     String?
+  ticket          Ticket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  submittedBy     User        @relation(fields: [submittedById], references: [id])
+
+  @@unique([ticketId, version])
+  @@index([ticketId, status])
+}
+
+model Appointment {
+  id                    String   @id @default(cuid())
+  ticketId              String
+  version               Int
+  startsAt              DateTime
+  endsAt                DateTime
+  notes                 String?
+  tenantConfirmedAt     DateTime?
+  contractorConfirmedAt DateTime?
+  createdAt             DateTime @default(now())
+  createdById           String
+  supersededAt          DateTime?
+  ticket                Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, version])
+  @@index([startsAt])
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  ticketId    String
+  uploadedById String
+  storageKey  String   @unique
+  originalName String
+  mimeType    String
+  byteSize    Int
+  sha256      String
+  createdAt   DateTime @default(now())
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  uploadedBy  User     @relation(fields: [uploadedById], references: [id])
+
+  @@index([ticketId])
+}
+
+model AiDraft {
+  id          String   @id @default(cuid())
+  ticketId    String
+  requestedById String
+  kind        String
+  provider    String
+  model       String?
+  content     Json
+  evidence    Json?
+  approvedAt  DateTime?
+  approvedById String?
+  createdAt   DateTime @default(now())
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  requestedBy User     @relation(fields: [requestedById], references: [id])
+
+  @@index([ticketId, createdAt])
+}
+
+model Notification {
+  id          String              @id @default(cuid())
+  businessKey String              @unique
+  userId      String
+  ticketId    String?
+  channel     NotificationChannel @default(IN_APP)
+  title       String
+  body        String
+  readAt      DateTime?
+  createdAt   DateTime            @default(now())
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}
+
+model OutboxJob {
+  id          String       @id @default(cuid())
+  businessKey String       @unique
+  kind        String
+  payload     Json
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  maxAttempts Int          @default(8)
+  availableAt DateTime     @default(now())
+  lockedAt    DateTime?
+  lockedBy    String?
+  lastError   String?
+  sentAt      DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([status, availableAt])
+  @@index([lockedAt])
+}
+
+model Invitation {
+  id          String   @id @default(cuid())
+  email       String
+  role        Role
+  tokenHash   String   @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdById String
+  createdAt   DateTime @default(now())
+  createdBy   User     @relation("InvitationCreator", fields: [createdById], references: [id])
+
+  @@index([email, expiresAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  action      String
+  entityType  String
+  entityId    String?
+  outcome     String
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+}
