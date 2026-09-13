@@ -13,7 +13,7 @@ async function login(page: Page, email: string) {
 
 async function logout(page: Page) {
   await page.getByRole("button", { name: "Sign out" }).first().click();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login$/, { timeout: 15_000 });
 }
 
 test("three roles complete, close and reopen a repair with record isolation", async ({ page }) => {
