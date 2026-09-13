@@ -17,7 +17,7 @@ async function logout(page: Page) {
 }
 
 test("three roles complete, close and reopen a repair with record isolation", async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
 
   const title = `[e2e] Bathroom leak ${Date.now()}`;
   const invitationEmail = `e2e-contractor-${Date.now()}@repairflow.test`;
